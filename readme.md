@@ -4,11 +4,21 @@
 
 这是一个目前依然处于测试阶段的，用来帮助开发者进行 dota2 自定义游戏开发的 gulp 插件(扩展自XavierCHN https://github.com/XavierCHN/gulp-dotax.git)，
 
+## 使用方法 Usage
+数组形式
+-- key value 或者 k v固定格式 以key cell value为键  value cell为值 （其他情况已title为键 cell内容为值）
+| 数组形式 | Map形式 | key    | value | custom key |  } |  ] |
+|  list[  |  1{     | key    | value | test       |
+|         |         | test_1 | 2     |  3         |
+
+第一列同名 则自动转换位 kv数组
+
+
+
+
 如果有深入使用的自定义需求，再查阅下方的使用方法
 
 如果有更多需求，issues are welcome
-
-## 使用方法 Usage
 
 ### EXCEL文件编译成KV文件
 
