@@ -1,5 +1,5 @@
 {
-    "name": "gulp-dotax-e2kv",
+    "name": "gulp-dota-e2kv",
     "version": "1.2.6",
     "description": "A helper gulp plugin collection to help dota2 modding",
     "main": "./lib/index.js",
