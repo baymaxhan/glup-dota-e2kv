@@ -1,0 +1,11 @@
+node_modules
+lib
+typings
+dist
+localizations
+test/kv
+test/panorama_json
+test/tstl_json
+test/resource/*.txt
+*.tgz
+~$*.xlsx
