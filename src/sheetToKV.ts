@@ -156,192 +156,205 @@ export function sheetToKV(options: SheetToKVOptions) {
         //var length = arr.unshift("water"); 
 
         let end_tail = is_array ? `${indent}}` : `}`
+        let row_cells =key_row.map((key, i) => {
+                // 判断key前后是否有空格，如果有，那么输出一个警告
+                checkSpace(key);
 
-        return (
-            key_row
-                .map((key, i) => {
-                    // 判断key前后是否有空格，如果有，那么输出一个警告
-                    checkSpace(key);
+                // 跳过没有的key
+                if (isEmptyOrNullOrUndefined(key)) return;
+                let indentStr = (indent || `\t`).repeat(indentLevel);
+                // 第一列为主键
+                if (i === 0) {
+                    indentLevel++;
 
-                    // 跳过没有的key
-                    if (isEmptyOrNullOrUndefined(key)) return;
-                    let indentStr = (indent || `\t`).repeat(indentLevel);
-                    // 第一列为主键
-                    if (i === 0) {
-                        indentLevel++;
+                    let m_key = is_array ? array_index : main_key
+                    if (_desc === '_name' || _desc === '_desc') {
+                        let note_str = row[1]
+                        return `${indentStr}// ${note_str}${new_line}${indentStr}"${m_key}" {${new_line}`;
+                    } else {
+                        return `${indentStr}"${m_key}" {${new_line}`;
+                    }
+                }
 
-                        let m_key = is_array ? array_index : main_key
-                        if (_desc === '_name' || _desc === '_desc') {
-                            let note_str = row[1]
-                            return `${indentStr}// ${note_str}${new_line}${indentStr}"${m_key}" {${new_line}`;
-                        } else {
-                            return `${indentStr}"${m_key}" {${new_line}`;
-                        }
+                // 忽略第二行备注
+                if (key_row[i] === '_name' || key_row[i] === '_desc') {
+                    return
+                }
+
+                let note_str = note_row[i]
+                if (null == note_str || note_str == "" || note_str.trim == null || note_str.trim() == "") {
+                    note_str = null
+                }
+
+                // 处理饰品的特殊键值对
+                if (key === `AttachWearables[`) {
+                    attachWearablesBlock = true;
+                    indentLevel++;
+                    indentStr = (indent || `\t`).repeat(indentLevel);
+                    // return `${indentStr}"${key.replace(`[`, ``)}" {${new_line}`;
+                    return deal_cell_note(note_str, indentStr, `"${key.replace(`[`, ``)}" {`, false)
+                }
+                // 处理饰品的特殊键值对结束
+                if (attachWearablesBlock && key == ']') {
+                    attachWearablesBlock = false;
+                    indentLevel--;
+                    indentStr = (indent || `\t`).repeat(indentLevel + 1);
+                    return `${indentStr}}${new_line}`;
+                }
+
+                // 获取该单元格的值
+                let cell: string = row[i];
+                checkSpace(cell);
+
+                if (
+                    attachWearablesBlock &&
+                    cell != `` &&
+                    cell != undefined
+                ) {
+
+                    let indentStr = (indent || `\t`).repeat(indentLevel + 1);
+                    // 如果输出中包含 { } 等，那么直接输出value，不加双引号
+                    if (cell !== null && cell.toString().trimStart().startsWith('{')) {
+                        return `${indentStr}"${key}" ${cell}${new_line}`;
                     }
 
-                    // 忽略第二行备注
-                    if (key_row[i] === '_name' || key_row[i] === '_desc') {
-                        return
+                    let indentStr2 = (indent || `\t`).repeat(indentLevel + 2);
+                    return `${indentStr}"Wearable${key}" ${new_line}${indentStr}{${new_line}${indentStr2}"ItemDef" "${cell}"${new_line}${indentStr}}${new_line}`;
+                }
+
+                // 处理写excel文件中的本地化文本
+                if (key.includes(`#Loc`)) {
+                    if (isEmptyOrNullOrUndefined(cell)) return;
+                    if (cell.trim && cell.trim() === ``) return;
+                    let locKey = key.replace(`#Loc`, ``).replace(`{}`, main_key);
+                    // 保存对应的本地化tokens
+                    locTokens.push({
+                        //TODO, 将Tokens修改为 addon.csv 第一行的第一个元素？
+                        KeyName: locKey,
+                        [addonCSVDefaultLang]: cell,
+                    });
+                    return; // 不输出到kv文件
+                }
+
+                // 如果key是 #LocValues，那么则作为本地化文本暂存
+                if (key == `#ValuesLoc`) {
+                    if (isEmptyOrNullOrUndefined(cell)) return;
+                    let values_key = '';
+                    // 如果key不是数字，那么则作为key
+                    if (isNaN(Number(key))) {
+                        values_key = key;
+                    }
+                    let datas = cell.toString().split(' ');
+                    if (isNaN(Number(datas[0]))) {
+                        values_key = datas[0];
+                        cell = cell.replace(`${datas[0]} `, '');
+                    }
+                    if (values_key == '') {
+                        values_key = `unknown_var_${varIndex}`;
+                        varIndex++;
                     }
 
-                    let note_str = note_row[i]
-                    if (null == note_str || note_str == "" || note_str.trim == null || note_str.trim() == "") {
-                        note_str = null
-                    }
+                    if (isEmptyOrNullOrUndefined(cell)) return;
+                    if (cell.trim && cell.trim() === ``) return;
+                    // 暂存键值的本地化文本
+                    locAbilitySpecial = cell;
 
-                    // 处理饰品的特殊键值对
-                    if (key === `AttachWearables[`) {
-                        attachWearablesBlock = true;
-                        indentLevel++;
-                        indentStr = (indent || `\t`).repeat(indentLevel);
-                        // return `${indentStr}"${key.replace(`[`, ``)}" {${new_line}`;
-                        return deal_cell_note(note_str, indentStr, `"${key.replace(`[`, ``)}" {`, false)
-                    }
-                    // 处理饰品的特殊键值对结束
-                    if (attachWearablesBlock && key == ']') {
-                        attachWearablesBlock = false;
-                        indentLevel--;
-                        indentStr = (indent || `\t`).repeat(indentLevel + 1);
-                        return `${indentStr}}${new_line}`;
-                    }
-
-                    // 获取该单元格的值
-                    let cell: string = row[i];
-                    checkSpace(cell);
-
-                    if (
-                        attachWearablesBlock &&
-                        cell != `` &&
-                        cell != undefined
-                    ) {
-
-                        let indentStr = (indent || `\t`).repeat(indentLevel + 1);
-                        // 如果输出中包含 { } 等，那么直接输出value，不加双引号
-                        if (cell !== null && cell.toString().trimStart().startsWith('{')) {
-                            return `${indentStr}"${key}" ${cell}${new_line}`;
-                        }
-
-                        let indentStr2 = (indent || `\t`).repeat(indentLevel + 2);
-                        return `${indentStr}"Wearable${key}" ${new_line}${indentStr}{${new_line}${indentStr2}"ItemDef" "${cell}"${new_line}${indentStr}}${new_line}`;
-                    }
-
-                    // 处理写excel文件中的本地化文本
-                    if (key.includes(`#Loc`)) {
-                        if (isEmptyOrNullOrUndefined(cell)) return;
-                        if (cell.trim && cell.trim() === ``) return;
-                        let locKey = key.replace(`#Loc`, ``).replace(`{}`, main_key);
+                    // 如果有暂存的本地化文本，那么作为下一个遇到的键值对的本地化文本输出到 addon.csv
+                    if (locAbilitySpecial != null) {
+                        let locKey = `dota_tooltip_ability_${main_key}_${values_key}`;
                         // 保存对应的本地化tokens
                         locTokens.push({
-                            //TODO, 将Tokens修改为 addon.csv 第一行的第一个元素？
                             KeyName: locKey,
-                            [addonCSVDefaultLang]: cell,
+                            [addonCSVDefaultLang]: locAbilitySpecial,
                         });
-                        return; // 不输出到kv文件
+                        locAbilitySpecial = null; // 重置本地化文本状态
                     }
-
-                    // 如果key是 #LocValues，那么则作为本地化文本暂存
-                    if (key == `#ValuesLoc`) {
-                        if (isEmptyOrNullOrUndefined(cell)) return;
-                        let values_key = '';
-                        // 如果key不是数字，那么则作为key
-                        if (isNaN(Number(key))) {
-                            values_key = key;
-                        }
-                        let datas = cell.toString().split(' ');
-                        if (isNaN(Number(datas[0]))) {
-                            values_key = datas[0];
-                            cell = cell.replace(`${datas[0]} `, '');
-                        }
-                        if (values_key == '') {
-                            values_key = `unknown_var_${varIndex}`;
-                            varIndex++;
-                        }
-
-                        if (isEmptyOrNullOrUndefined(cell)) return;
-                        if (cell.trim && cell.trim() === ``) return;
-                        // 暂存键值的本地化文本
-                        locAbilitySpecial = cell;
-
-                        // 如果有暂存的本地化文本，那么作为下一个遇到的键值对的本地化文本输出到 addon.csv
-                        if (locAbilitySpecial != null) {
-                            let locKey = `dota_tooltip_ability_${main_key}_${values_key}`;
-                            // 保存对应的本地化tokens
-                            locTokens.push({
-                                KeyName: locKey,
-                                [addonCSVDefaultLang]: locAbilitySpecial,
-                            });
-                            locAbilitySpecial = null; // 重置本地化文本状态
-                        }
-                        return; // 不输出到kv文件中去
-                    }
+                    return; // 不输出到kv文件中去
+                }
 
 
-                    // 如果是数组形式结构
-                    if (key.endsWith("[")) {
-                        listValuesBlock.unshift(key);
-                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel - 1);
-                        let tkey = key.replace(`[`, ``)
-                        return deal_cell_note(note_str, indentStr, `"${tkey}" {`, false)
-                    }
-                    // 数组结束
-                    if (key == ']') {
-                        listValuesBlock.shift()
-                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
-                        return `${indentStr}}` + `${new_line}`;
-                    }
-
-                    // 如果map形式结构
-                    if (key.endsWith("{")) {
-                        listValuesBlock.unshift(key);
-                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel - 1);
-                        let tkey = key.replace(`{`, ``)
-                        return deal_cell_note(note_str, indentStr, `"${tkey}" {`, false)
-                    }
-
-                    // map结束
-                    if (key.endsWith('}')) {
-                        listValuesBlock.shift()
-                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
-                        return `${indentStr}}${new_line}`;
-                    }
-
-                    if ((isEmptyOrNullOrUndefined(cell)) && !/^Ability[0-9]{1,2}/.test(key)) {
-                        return;
-                    }
+                // 如果是数组形式结构
+                if (key.endsWith("[")) {
+                    listValuesBlock.unshift(key);
+                    indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel - 1);
+                    let tkey = key.replace(`[`, ``)
+                    return deal_cell_note(note_str, indentStr, `"${tkey}" {`, false)
+                }
+                // 数组结束
+                if (key == ']') {
+                    listValuesBlock.shift()
                     indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
+                    return `${indentStr}}` + `${new_line}`;
+                }
 
-                    // 缩进
-                    if (key != "value" && key != "v") {
-                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
+                // 如果map形式结构
+                if (key.endsWith("{")) {
+                    listValuesBlock.unshift(key);
+                    indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel - 1);
+                    let tkey = key.replace(`{`, ``)
+                    return deal_cell_note(note_str, indentStr, `"${tkey}" {`, false)
+                }
+
+                // map结束
+                if (key.endsWith('}')) {
+                    listValuesBlock.shift()
+                    indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
+                    return `${indentStr}}${new_line}`;
+                }
+
+                if ((isEmptyOrNullOrUndefined(cell)) && !/^Ability[0-9]{1,2}/.test(key)) {
+                    return;
+                }
+                indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
+
+                // 缩进
+                if (key != "value" && key != "v") {
+                    indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
+                } else {
+                    let idlv = Math.max(0, listValuesBlock.length + indentLevel - 4)
+                    indentStr = (indent || `\t`).repeat(idlv);
+                }
+                const output_value = deal_with_kv_value(cell);
+
+                // 如果输出中包含 { } 等，那么直接输出value，不加双引号
+                if (
+                    output_value != null &&
+                    output_value.toString().trimStart().startsWith('{')
+                ) {
+                    return `${indentStr}"${key}" ${output_value}${new_line}`;
+                }
+
+                if (key == "key" || key == "k") {
+                    if (row_index == 0 && null != note_str) {
+                        return deal_cell_note(note_str, indentStr, `"${output_value}"`, true)
                     } else {
-                        let idlv = Math.max(0, listValuesBlock.length + indentLevel - 4)
-                        indentStr = (indent || `\t`).repeat(idlv);
+                        return `${indentStr}"${output_value}"`;
                     }
-                    const output_value = deal_with_kv_value(cell);
+                } else if (key == "value" || key == "v") {
+                    return `${indentStr} "${output_value}"${new_line}`;
+                }
+                return deal_cell_note(note_str, indentStr, `"${key}" "${output_value}"`, false)
+            })
+            .filter((row) => row != null)
+            .map((s) => (chineseToPinyin ? convert_chinese_to_pinyin(s) : s))
 
-                    // 如果输出中包含 { } 等，那么直接输出value，不加双引号
-                    if (
-                        output_value != null &&
-                        output_value.toString().trimStart().startsWith('{')
-                    ) {
-                        return `${indentStr}"${key}" ${output_value}${new_line}`;
-                    }
-
-                    if (key == "key" || key == "k") {
-                        if (row_index == 0 && null != note_str) {
-                            return deal_cell_note(note_str, indentStr, `"${output_value}"`, true)
-                        } else {
-                            return `${indentStr}"${output_value}"`;
-                        }
-                    } else if (key == "value" || key == "v") {
-                        return `${indentStr} "${output_value}"${new_line}`;
-                    }
-                    return deal_cell_note(note_str, indentStr, `"${key}" "${output_value}"`, false)
-                })
-                .filter((row) => row != null)
-                .map((s) => (chineseToPinyin ? convert_chinese_to_pinyin(s) : s))
-                .join('') +
-            `${indent}${end_tail}${new_line}`
+        // 删除空的数组
+        for (let i = 0; i < row_cells.length; i++) {
+            let cell_str = row_cells[i]
+            let next_cell_str = row_cells[i  +  1]
+            if(null != cell_str  && null != next_cell_str){
+                cell_str = cell_str.trim()
+                next_cell_str = next_cell_str.trim()
+                if (cell_str.endsWith('{') && next_cell_str == '}') {
+                    row_cells.splice(i, 1);
+                    row_cells.splice(i, 1);
+                    i--
+                    i--
+                }
+            }
+        }
+        return (
+            row_cells.join('') + `${indent}${end_tail}${new_line}`
         );
     }
 
