@@ -109,20 +109,26 @@ export function sheetToKV(options: SheetToKVOptions) {
     }
 
 
-    function deal_cell_note(note_str: string, indentStr: string, cell_key: string): string {
-        let line_break = '\n'
-        if (null != note_str) {
-            return `${indentStr}// ${note_str} ${line_break}${indentStr}${cell_key}${line_break}`;
-        } else {
-            return `${indentStr}${cell_key}${line_break}`;
-        }
-    }
-
-    // res = res + convert_row_to_kv(row, note_row, key_row, count, index);
-    function convert_row_to_kv(row: string[], note_row: string[], key_row: string[], is_array:boolean, array_index:integer): string {
+    function convert_row_to_kv(row: string[], row_index: integer, note_row: string[], key_row: string[], is_array: boolean, array_index: integer): string {
         // 第一列为主键
         let main_key = row[0];
         let _desc = key_row[1]
+
+        let new_line = '\n'
+
+        // ignore_newline 忽略换行
+        function deal_cell_note(note_str: string, indentStr: string, cell_key: string, ignore_newline: boolean): string {
+            let res_str = null
+            if (row_index == 0 && null != note_str) {
+                res_str = `${indentStr}// ${note_str} ${new_line}${indentStr}${cell_key}`;
+            } else {
+                res_str = `${indentStr}${cell_key}`;
+            }
+            if (!ignore_newline) {
+                res_str = res_str + `${new_line}`;
+            }
+            return res_str
+        }
 
         function checkSpace(str: string) {
             if (typeof str == 'string' && str.trim != null && str != str.trim()) {
@@ -139,7 +145,7 @@ export function sheetToKV(options: SheetToKVOptions) {
         let attachWearablesBlock = false;
         let abilityValuesBlock = false;
         let varIndex = 0;
-        let indentLevel = 1 + (is_array ? 1 :  0);
+        let indentLevel = 1 + (is_array ? 1 : 0);
 
         let locAbilitySpecial = null;
 
@@ -149,9 +155,8 @@ export function sheetToKV(options: SheetToKVOptions) {
 
         //var length = arr.unshift("water"); 
 
-        let end_tail = is_array ? `${indent}}` :  `}`
+        let end_tail = is_array ? `${indent}}` : `}`
 
-        let line_break = '\n'
         return (
             key_row
                 .map((key, i) => {
@@ -168,9 +173,9 @@ export function sheetToKV(options: SheetToKVOptions) {
                         let m_key = is_array ? array_index : main_key
                         if (_desc === '_name' || _desc === '_desc') {
                             let note_str = row[1]
-                            return `${indentStr}// ${note_str}${line_break}${indentStr}"${m_key}" {${line_break}`;
+                            return `${indentStr}// ${note_str}${new_line}${indentStr}"${m_key}" {${new_line}`;
                         } else {
-                            return `${indentStr}"${m_key}" {${line_break}`;
+                            return `${indentStr}"${m_key}" {${new_line}`;
                         }
                     }
 
@@ -189,15 +194,15 @@ export function sheetToKV(options: SheetToKVOptions) {
                         attachWearablesBlock = true;
                         indentLevel++;
                         indentStr = (indent || `\t`).repeat(indentLevel);
-                        // return `${indentStr}"${key.replace(`[`, ``)}" {${line_break}`;
-                        return deal_cell_note(note_str, indentStr, `"${key.replace(`[`, ``)}" {`)
+                        // return `${indentStr}"${key.replace(`[`, ``)}" {${new_line}`;
+                        return deal_cell_note(note_str, indentStr, `"${key.replace(`[`, ``)}" {`, false)
                     }
                     // 处理饰品的特殊键值对结束
                     if (attachWearablesBlock && key == ']') {
                         attachWearablesBlock = false;
                         indentLevel--;
                         indentStr = (indent || `\t`).repeat(indentLevel + 1);
-                        return `${indentStr}}${line_break}`;
+                        return `${indentStr}}${new_line}`;
                     }
 
                     // 获取该单元格的值
@@ -213,11 +218,11 @@ export function sheetToKV(options: SheetToKVOptions) {
                         let indentStr = (indent || `\t`).repeat(indentLevel + 1);
                         // 如果输出中包含 { } 等，那么直接输出value，不加双引号
                         if (cell !== null && cell.toString().trimStart().startsWith('{')) {
-                            return `${indentStr}"${key}" ${cell}${line_break}`;
+                            return `${indentStr}"${key}" ${cell}${new_line}`;
                         }
 
                         let indentStr2 = (indent || `\t`).repeat(indentLevel + 2);
-                        return `${indentStr}"Wearable${key}" ${line_break}${indentStr}{${line_break}${indentStr2}"ItemDef" "${cell}"${line_break}${indentStr}}${line_break}`;
+                        return `${indentStr}"Wearable${key}" ${new_line}${indentStr}{${new_line}${indentStr2}"ItemDef" "${cell}"${new_line}${indentStr}}${new_line}`;
                     }
 
                     // 处理写excel文件中的本地化文本
@@ -274,30 +279,30 @@ export function sheetToKV(options: SheetToKVOptions) {
                     // 如果是数组形式结构
                     if (key.endsWith("[")) {
                         listValuesBlock.unshift(key);
-                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + 1);
+                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel - 1);
                         let tkey = key.replace(`[`, ``)
-                        return deal_cell_note(note_str, indentStr, `"${tkey}" {`)
+                        return deal_cell_note(note_str, indentStr, `"${tkey}" {`, false)
                     }
                     // 数组结束
                     if (key == ']') {
                         listValuesBlock.shift()
                         indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
-                        return `${indentStr}}` + `${line_break}`;
+                        return `${indentStr}}` + `${new_line}`;
                     }
 
                     // 如果map形式结构
                     if (key.endsWith("{")) {
                         listValuesBlock.unshift(key);
-                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + 1);
+                        indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel - 1);
                         let tkey = key.replace(`{`, ``)
-                        return deal_cell_note(note_str, indentStr, `"${tkey}" {`)
+                        return deal_cell_note(note_str, indentStr, `"${tkey}" {`, false)
                     }
 
                     // map结束
                     if (key.endsWith('}')) {
                         listValuesBlock.shift()
                         indentStr = (indent || `\t`).repeat(listValuesBlock.length + indentLevel);
-                        return `${indentStr}}${line_break}`;
+                        return `${indentStr}}${new_line}`;
                     }
 
                     if ((isEmptyOrNullOrUndefined(cell)) && !/^Ability[0-9]{1,2}/.test(key)) {
@@ -319,24 +324,24 @@ export function sheetToKV(options: SheetToKVOptions) {
                         output_value != null &&
                         output_value.toString().trimStart().startsWith('{')
                     ) {
-                        return `${indentStr}"${key}" ${output_value}${line_break}`;
+                        return `${indentStr}"${key}" ${output_value}${new_line}`;
                     }
 
                     if (key == "key" || key == "k") {
-                        if (null != note_str) {
-                            return `${indentStr}// ${note_str} ${line_break}${indentStr}"${output_value}"`;
+                        if (row_index == 0 && null != note_str) {
+                            return deal_cell_note(note_str, indentStr, `"${output_value}"`, true)
                         } else {
                             return `${indentStr}"${output_value}"`;
                         }
                     } else if (key == "value" || key == "v") {
-                        return `${indentStr} "${output_value}"${line_break}`;
+                        return `${indentStr} "${output_value}"${new_line}`;
                     }
-                    return deal_cell_note(note_str, indentStr, `"${key}" "${output_value}"`)
+                    return deal_cell_note(note_str, indentStr, `"${key}" "${output_value}"`, false)
                 })
                 .filter((row) => row != null)
                 .map((s) => (chineseToPinyin ? convert_chinese_to_pinyin(s) : s))
                 .join('') +
-            `${indent}${end_tail}${line_break}`
+            `${indent}${end_tail}${new_line}`
         );
     }
 
@@ -433,33 +438,36 @@ export function sheetToKV(options: SheetToKVOptions) {
                     let index = 1;
                     let current_mainkey;
                     let indentStr = (indent || `\t`).repeat(1);
-                    let line_break = '\n'
-                    const kv_data_complex = kv_data.map((row) => {
+                    let new_line = '\n'
+                    const kv_data_complex = kv_data.map((row, row_index) => {
                         if (isEmptyOrNullOrUndefined(row[0])) return;
-
-                        let res  = ``
+                        let res = ``
                         let main_key = row[0];
+
                         // 第一列相同key的数据轮询完毕 
-                        if(current_mainkey  != null && current_mainkey  != main_key){
-                            res = `${indentStr}}${line_break}`;
+                        if (current_mainkey != null && current_mainkey != main_key) {
+                            res = `${indentStr}}${new_line}`;
                             current_mainkey = null;
                             index = 1
                         }
 
                         let count = mapMainKey.get(main_key)
-                        if(count > 1){
-                            if (current_mainkey == null){
-                                res = `${indentStr}"${main_key}" {${line_break}`;
+                        if (count > 1) {
+                            if (current_mainkey == null) {
+                                res = res + `${indentStr}"${main_key}" {${new_line}`;
                             }
                             current_mainkey = main_key
                             index = index + 1
+                        } else {
+                            current_mainkey = null;
+                            index = 1
                         }
 
-                        res = res + convert_row_to_kv(row, note_row, key_row, count > 1, index  - 1);
+                        res = res + convert_row_to_kv(row, row_index, note_row, key_row, count > 1, index - 1);
                         return res;
                     });
-                    if(null != current_mainkey){
-                        kv_data_complex.push(`${indentStr}}${line_break}`);
+                    if (null != current_mainkey) {
+                        kv_data_complex.push(`${indentStr}}${new_line}`);
                     }
 
                     kv_data_str = `${kv_data_complex.join('')}`;
