@@ -261,7 +261,7 @@ export function sheetToKV(options: SheetToKVOptions) {
 
                     // 如果有暂存的本地化文本，那么作为下一个遇到的键值对的本地化文本输出到 addon.csv
                     if (locAbilitySpecial != null) {
-                        let locKey = `dota_tooltip_ability_${main_key}_${values_key}`;
+                        let locKey = `DOTA_Tooltip_ability_${main_key}_${values_key}`;
                         // 保存对应的本地化tokens
                         locTokens.push({
                             KeyName: locKey,
