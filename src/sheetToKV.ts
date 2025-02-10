@@ -428,15 +428,66 @@ export function sheetToKV(options: SheetToKVOptions) {
 
                 let kv_data_str = '';
 
+                // 统计 有效的列
+                let columns: string[] = [];
+                let col_length = 0
+                let row_cells =key_row.map((key, i) => {
+                    // 跳过没有的key
+                    if (isEmptyOrNullOrUndefined(key)) return;
+                    if (key.startsWith(`#`) || key.startsWith(`_`) ) return;
+                    col_length = col_length + 1
+                    columns.push(i)
+                })
+
+                let primary_col = columns[0]
+
                 let file_name = "XLSXContent"
-                if (key_row.length == 2 && autoSimpleKV) {
+                // 只有两列的数组形式 处理成 weapon主键列
+                // "weapon" {
+                //     "1" "item_10001"
+                //     "2" "item_10002"
+                //     "3" "item_10003"
+                //     "4" "item_10004"
+                //     "5" "item_10005"
+                //     "6" "item_10006"
+                //     "7" "item_10007"
+                // }
+                if (col_length == 2 && key_row[primary_col].endsWith("[↓")) {
+                    // "SkillDropPkt1" {
+                    let value_col = columns[1]
+                    
+                    let symbol_tab = '\t'
+                    let indentStr = (`${symbol_tab}`).repeat(1);
+                    let str_columns: string[] = [];
+                    let arr_index = 1
+                    for (let index = 0; index < kv_data_length; index++) {
+                        let row = kv_data[index]
+                        // 主键 列不为空 
+                        let primary_empty = isEmptyOrNullOrUndefined(row[primary_col])
+                        if (!primary_empty && index != 0){
+                            str_columns.push(`${symbol_tab}}`)
+                            arr_index = 1
+                        }
+                        if (!primary_empty){
+                            str_columns.push(`${symbol_tab}"${row[primary_col]}" {`)
+                        }
+                        if (!isEmptyOrNullOrUndefined(row[value_col])){
+                            str_columns.push(`${symbol_tab}${indentStr}"${arr_index}"${symbol_tab}"${row[value_col]}"`)
+                            arr_index = arr_index + 1
+                        }
+                    }
+                    str_columns.push(`${symbol_tab}}`)
+                    kv_data_str = `${str_columns.join('\n')}`;
+                    file_name = sheet_name
+
+                } else if (col_length == 2 && autoSimpleKV){
+                    let value_col = columns[1]
                     const kv_data_simple = kv_data.map((row) => {
-                        return `\t"${row[0]}" "${row[1]}"`;
+                        return `\t"${row[primary_col]}" "${row[value_col]}"`;
                     });
                     kv_data_str = `${kv_data_simple.join('\n')}`;
                     file_name = sheet_name
                 } else {
-
                     let mapMainKey = new Map();
                     kv_data.map((row, idx) => {
                         if (isEmptyOrNullOrUndefined(row[0])) return;
