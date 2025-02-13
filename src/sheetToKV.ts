@@ -46,6 +46,14 @@ function isEmptyOrNullOrUndefined(value: any) {
     return value === null || value === undefined || value === ``;
 }
 
+function isBlank(value: any) {
+    return value === null || value === undefined || value === ``;
+}
+
+function isNotBlank(value: any) {
+    return !isBlank(value);
+}
+
 export function sheetToKV(options: SheetToKVOptions) {
     const {
         customPinyins = {},
@@ -121,260 +129,6 @@ export function sheetToKV(options: SheetToKVOptions) {
         }
     }
 
-    function convert_row_to_kv(title_row: string[], note_row: string[], kv_data: string[], row_index: integer, primary_col: integer, indent: integer): string {
-        // 国际化参数
-        let indentLevel = indent + 2;
-        // 数组阻塞标记
-        let listValuesBlock = new Array();
-        let mapValuesBlock = new Array();
-
-        let verticalListBlock = new Array();
-
-        let blockStatus = new Array();
-
-        // const kv_data_length = kv_data.length;
-        let end_row_idx = 0
-        let cur_mainkey = kv_data[row_index][primary_col]
-        function get_end_row() {
-            if (end_row_idx > 0) { return end_row_idx }
-            end_row_idx = kv_data.length;
-            for (let _row = row_index + 1; _row < kv_data.length; _row++) {
-                // 主键 列不为空 
-                if (!isEmptyOrNullOrUndefined(kv_data[_row][primary_col])) {
-                    end_row_idx = _row - 1
-                }
-            }
-            return end_row_idx
-        }
-
-        let row_cells = new Array();
-
-        // 根据列进行数据处理 知道处理完最后一列
-        function _handle(_row, _col, next) {
-            if (_col >= title_row.length) { return }
-            let title = title_row[_col]
-            // 空title 直接跳过
-            // 以_或#开头标识要忽略的列
-            if (_col == primary_col || isEmptyOrNullOrUndefined(title) || title.startsWith('_') || title.startsWith('#') || title.includes('#Loc')) {
-                _handle(_row, _col + 1, true)
-                return
-            };
-
-            let indentStr = (`${indent_str}`).repeat(indentLevel);
-            // 集合结尾标识
-            if (title == "↓]" || title == "↓}" || title == "]" || title == "}") {
-                indentLevel = indentLevel - 1
-                console.log(`indentLevel = ${indentLevel}`)
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                row_cells.push(`${indentStr}}${new_line}`);
-                // 处理下一列
-                _handle(_row, _col + 1, true)
-                return
-            }
-
-            // 自定义注释 描述
-            if (title != "value" && title != "v") {
-                let note_str = note_row[_col]
-                if (null == note_str || note_str == "" || note_str.trim == null || note_str.trim() == "") {
-                    note_str = null
-                }
-                if (row_index == 0 && null != note_str) {
-                    if (title.includes("[↓") || title.includes("{↓") || title.includes("[") || title.includes("{") || !isEmptyOrNullOrUndefined(kv_data[row_index][_col])) {
-                        indentStr = (`${indent_str}`).repeat(indentLevel);
-                        row_cells.push(`${indentStr}// ${note_str} ${new_line}`);
-                    }
-                }
-            }
-
-            // 竖向数组
-            if (title.endsWith("[↓")) {
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                indentLevel = indentLevel + 1
-                let s_title = title.replace(`[↓`, ``)
-                row_cells.push(`${indentStr}"${s_title}"${indent_str}{${new_line}`);
-
-                let _endrow = get_end_row()
-                let _endcol = title_row.length
-                for (let col_idx = _col; col_idx < title_row.length; col_idx++) {
-                    let s_title = title_row[col_idx]
-                    if (!s_title) continue;
-                    if (s_title == "↓]") {
-                        _endcol = col_idx
-                        break
-                    }
-                }
-
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                for (let index = row_index; index <= _endrow; index++) {
-                    row_cells.push(`${indentStr}"${index - row_index + 1}"${indent_str}{${new_line}`);
-                    indentLevel = indentLevel + 1
-                    for (let col_idx = _col + 1; col_idx < _endcol; col_idx++) {
-                        indentStr = (`${indent_str}`).repeat(indentLevel);
-                        if (isEmptyOrNullOrUndefined(title_row[col_idx])) {
-                            continue
-                        }
-                        if (isEmptyOrNullOrUndefined(kv_data[index]) || isEmptyOrNullOrUndefined(kv_data[index][col_idx])) {
-                            continue
-                        }
-                        let next_flag = title_row[col_idx].endsWith("[") || title_row[col_idx].endsWith("[↓")
-                            || title_row[col_idx].endsWith("{") || title_row[col_idx].endsWith("{↓")
-                        // row_cells.push(`${indentStr}"${title_row[col_idx]}" "${kv_data[index][col_idx]}"${new_line}`);
-                        _handle(index, col_idx, next_flag)
-                    }
-                    indentLevel = indentLevel - 1
-                    indentStr = (`${indent_str}`).repeat(indentLevel);
-                    row_cells.push(`${indentStr}}${new_line}`);
-                }
-
-                indentLevel = indentLevel - 1
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                row_cells.push(`${indentStr}}${new_line}`);
-                // 处理下一列
-                _handle(_row, _endcol + 1, true)
-                return
-            }
-            // 竖向map
-            if (title.endsWith("{↓")) {
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                indentLevel = indentLevel + 1
-                let s_title = title.replace(`{↓`, ``)
-                // 开始 {
-                row_cells.push(`${indentStr}"${s_title}"${indent_str}{${new_line}`);
-
-                let _endrow = get_end_row()
-                let _endcol = title_row.length
-                for (let col_idx = _col + 1; col_idx < title_row.length; col_idx++) {
-                    let s_title = title_row[col_idx]
-                    if (!s_title) continue;
-                    if (s_title.endsWith("[↓") || s_title.endsWith("{↓") || s_title.endsWith("[") || s_title.endsWith("{") || s_title == "↓}") {
-                        _endcol = col_idx
-                        break
-                    }
-                }
-                console.log(` ${title} end ${_endcol}`)
-
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                for (let index = row_index; index <= _endrow; index++) {
-                    for (let col_idx = _col + 1; col_idx < _endcol; col_idx++) {
-                        indentStr = (`${indent_str}`).repeat(indentLevel);
-                        if (isEmptyOrNullOrUndefined(title_row[col_idx])) {
-                            continue
-                        }
-                        if (isEmptyOrNullOrUndefined(kv_data[index]) || isEmptyOrNullOrUndefined(kv_data[index][col_idx])) {
-                            continue
-                        }
-                        let next_flag = title_row[col_idx].endsWith("[") || title_row[col_idx].endsWith("[↓")
-                            || title_row[col_idx].endsWith("{") || title_row[col_idx].endsWith("{↓")
-                        // row_cells.push(`${indentStr}"${title_row[col_idx]}" "${kv_data[index][col_idx]}"${new_line}`);
-                        _handle(index, col_idx, next_flag)
-                    }
-                }
-
-                indentLevel = indentLevel - 1
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                // 结束 }
-                row_cells.push(`${indentStr}}${new_line}`);
-
-                // 重新计算下次处理第几列
-                let t_block = new Array()
-                for (let col_idx = _col + 1; col_idx < title_row.length; col_idx++) {
-                    let s_title = title_row[col_idx]
-                    if (!s_title) continue;
-                    if (s_title.endsWith("{↓")) {
-                        t_block.unshift(s_title)
-                    }
-                    if (s_title == "↓}") {
-                        if (t_block.length == 0) {
-                            _endcol = col_idx
-                            break;
-                        }
-                    }
-                }
-
-                // 处理下一列
-                console.log(` next ${_endcol + 1}`)
-                _handle(_row, _endcol, true)
-                return
-            }
-
-            // 掉落物品集合	掉落物品		掉落数量	掉落权重	
-            // items[↓		item	count	weight	↓]
-
-
-            // 横向数组
-            if (title.endsWith("[")) {
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                indentLevel = indentLevel + 1
-                let s_title = title.replace(`[`, ``)
-                row_cells.push(`${indentStr}"${s_title}"${indent_str}{${new_line}`);
-                // 处理下一列
-                _handle(_row, _col + 1, true)
-                return
-            }
-
-            // 横向Map
-            if (title.endsWith("{")) {
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-                indentLevel = indentLevel + 1
-                let s_title = title.replace(`{`, ``)
-                row_cells.push(`${indentStr}"${s_title}"${indent_str}{${new_line}`);
-                // 处理下一列
-                _handle(_row, _col + 1, true)
-                return
-            }
-
-            // 普通列处理
-            let cell = kv_data[_row][_col]
-            if ((isEmptyOrNullOrUndefined(cell)) && !/^Ability[0-9]{1,2}/.test(title)) {
-                _handle(_row, _col + 1, true)
-                return;
-            }
-            // 缩进
-            if (title != "value" && title != "v") {
-                indentStr = (`${indent_str}`).repeat(indentLevel);
-            } else {
-                let idlv = Math.max(0, indentLevel - 4)
-                indentStr = (`${indent_str}`).repeat(idlv);
-            }
-            const output_value = deal_with_kv_value(cell);
-            // 如果输出中包含 { } 等，那么直接输出value，不加双引号
-            if (output_value != null && output_value.toString().trimStart().startsWith('{')) {
-                row_cells.push(`${indentStr}"${title}"${indent_str}${output_value}${new_line}`);
-            } else if (title == "key" || title == "k") {
-                row_cells.push(`${indentStr}"${output_value}"`);
-            } else if (title == "value" || title == "v") {
-                row_cells.push(`${indentStr}${indent_str}"${output_value}"${new_line}`);
-            } else {
-                row_cells.push(`${indentStr}"${title}"${indent_str}"${output_value}"${new_line}`);
-            }
-            if (next) {
-                _handle(_row, _col + 1, true)
-            }
-        }
-        _handle(row_index, primary_col, true)
-        // row_cells = row_cells.filter((row) => row != null)
-        //     .map((s) => (chineseToPinyin ? convert_chinese_to_pinyin(s) : s))
-
-        // 删除空的数组
-        for (let i = 0; i < row_cells.length; i++) {
-            let cell_str = row_cells[i]
-            let next_cell_str = row_cells[i + 1]
-            if (null != cell_str && null != next_cell_str) {
-                cell_str = cell_str.trim()
-                next_cell_str = next_cell_str.trim()
-                if (cell_str.endsWith('{') && next_cell_str == '}') {
-                    row_cells.splice(i, 1);
-                    row_cells.splice(i, 1);
-                    i--
-                    i--
-                }
-            }
-        }
-        return (
-            row_cells.join('')
-        );
-    }
-
     let genratedFiles: string[] = [];
     function convert(this: any, file: Vinyl, enc: any, next: Function) {
         if (file.isNull()) return next(null, file);
@@ -448,9 +202,13 @@ export function sheetToKV(options: SheetToKVOptions) {
                 // 统计 有效的列
                 let columns: string[] = [];
                 let col_length = 0
+                let name_col
                 let row_cells = title_row.map((key, i) => {
                     // 跳过没有的key
                     if (isEmptyOrNullOrUndefined(key)) return;
+                    if (key == "#name") {
+                        name_col = i
+                    }
                     if (key.startsWith(`#`) || key.startsWith(`_`)) return;
                     col_length = col_length + 1
                     columns.push(i)
@@ -458,7 +216,6 @@ export function sheetToKV(options: SheetToKVOptions) {
 
                 let primary_col = columns[0]
 
-                let file_name = "XLSXContent"
                 // 只有两列的数组形式 处理成 weapon主键列
                 // "weapon" {
                 //     "1" "item_10001"
@@ -469,41 +226,41 @@ export function sheetToKV(options: SheetToKVOptions) {
                 //     "6" "item_10006"
                 //     "7" "item_10007"
                 // }
-                if (col_length == 2 && title_row[primary_col].endsWith("[↓")) {
-                    // "SkillDropPkt1" {
-                    let value_col = columns[1]
+                // if (col_length == 2 && title_row[primary_col].endsWith("[↓")) {
+                //     // "SkillDropPkt1" {
+                //     let value_col = columns[1]
 
-                    let indentStr = (`${indent_str}`).repeat(1);
-                    let str_columns: string[] = [];
-                    let arr_index = 1
-                    for (let index = 0; index < kv_data_length; index++) {
-                        let row = kv_data[index]
-                        // 主键 列不为空 
-                        let primary_empty = isEmptyOrNullOrUndefined(row[primary_col])
-                        if (!primary_empty && index != 0) {
-                            str_columns.push(`${indent_str}}`)
-                            arr_index = 1
-                        }
-                        if (!primary_empty) {
-                            str_columns.push(`${indent_str}"${row[primary_col]}" {`)
-                        }
-                        if (!isEmptyOrNullOrUndefined(row[value_col])) {
-                            str_columns.push(`${indent_str}${indentStr}"${arr_index}"${indent_str}"${row[value_col]}"`)
-                            arr_index = arr_index + 1
-                        }
-                    }
-                    str_columns.push(`${indent_str}}`)
-                    kv_data_str = `${str_columns.join('\n')}`;
-                    file_name = sheet_name
+                //     let indentStr = (`${indent_str}`).repeat(1);
+                //     let str_columns: string[] = [];
+                //     let arr_index = 1
+                //     for (let index = 0; index < kv_data_length; index++) {
+                //         let row = kv_data[index]
+                //         // 主键 列不为空 
+                //         let primary_empty = isEmptyOrNullOrUndefined(row[primary_col])
+                //         if (!primary_empty && index != 0) {
+                //             str_columns.push(`${indent_str}}`)
+                //             arr_index = 1
+                //         }
+                //         if (!primary_empty) {
+                //             str_columns.push(`${indent_str}"${row[primary_col]}" {`)
+                //         }
+                //         if (!isEmptyOrNullOrUndefined(row[value_col])) {
+                //             str_columns.push(`${indent_str}${indentStr}"${arr_index}"${indent_str}"${row[value_col]}"`)
+                //             arr_index = arr_index + 1
+                //         }
+                //     }
+                //     str_columns.push(`${indent_str}}`)
+                //     kv_data_str = `${str_columns.join('\n')}`;
 
-                } else if (col_length == 2 && autoSimpleKV) {
+                // } else 
+                if (col_length == 2 && autoSimpleKV) {
                     let value_col = columns[1]
                     const kv_data_simple = kv_data.map((row) => {
                         return `\t"${row[primary_col]}" "${row[value_col]}"`;
                     });
-                    kv_data_str = `${kv_data_simple.join('\n')}`;
-                    file_name = sheet_name
+                    kv_data_str = `"${sheet_name}"\n{\n${kv_data_simple.join('\n')}\n}`;
                 } else {
+                    let kv_data_complex = new Array()
                     // 国际化文本处理
                     title_row.forEach((title, _col) => {
                         // 处理写excel文件中的本地化文本
@@ -553,59 +310,283 @@ export function sheetToKV(options: SheetToKVOptions) {
                     })
 
 
-                    // 如果主键 是一个数组
-                    let indentStr = (`${indent_str}`).repeat(1);
-                    let arrayIndex = 0
-                    let is_array = title_row[primary_col].endsWith("[↓")
-                    let primary_key
-                    const kv_data_complex = kv_data.map((row, row_index) => {
-                        let pk = row[primary_col]
-                        if (isEmptyOrNullOrUndefined(pk)) return;
-                        let res = ``
-                        if (pk != primary_key) {
-                            primary_key = pk
-                            arrayIndex = 0
-
-                            let note_col = -1
-                            title_row.forEach(function (title, idx) {
-                                if (title == "#name" || title == "_name") { note_col = idx }
-                            });
-
-                            // 结束}
-                            if (row_index != 0) {
-                                res = res + `${indentStr}}${new_line}`;
+                    function find_end_col(start_col, end_col, start_mark, end_mark) {
+                        let blockList = new Array()
+                        for (let _col = start_col + 1; _col <= end_col; _col++) {
+                            let title = title_row[_col]
+                            if (isBlank(title)) continue;
+                            title = title.trim()
+                            if (title.endsWith(start_mark)) {
+                                blockList.unshift(title)
                             }
-                            // title描述
-                            if (note_col != -1) {
-                                res = res + `${indentStr}// ${row[note_col]}${new_line}`;
+                            if (title == end_mark && blockList.length == 0) {
+                                return _col
                             }
-                            res = res + `${indentStr}"${primary_key}" {${new_line}`;
+                            if (title == end_mark) {
+                                blockList.shift()
+                            }
                         }
-
-                        if (is_array) {
-                            arrayIndex = arrayIndex + 1
-                            let indentStr2 = (`${indent_str}`).repeat(2);
-                            res = res + `${indentStr2}"${arrayIndex}" {${new_line}`;
-                            res = res + convert_row_to_kv(title_row, note_row, kv_data, row_index, primary_col, 1);
-                            res = res + `${indentStr2}}${new_line}`;
-                        } else {
-                            res = res + convert_row_to_kv(title_row, note_row, kv_data, row_index, primary_col, 0);
-                        }
-                        return res;
-                    });
-                    kv_data_complex.push(`${indentStr}}${new_line}`)
-                    kv_data_str = `${kv_data_complex.join('')}`;
-                    if (kv_data_str.includes(`override_hero`)) {
-                        file_name = "DOTAHeroes"
-                    } else if (kv_data_str.includes(`AttackCapabilities`)) {
-                        file_name = "DOTAUnits"
-                    } else if (kv_data_str.includes(`BaseClass`) && (kv_data_str.includes(`item_lua`) || kv_data_str.includes(`item_datadriven`))) {
-                        file_name = "DOTAItems"
-                    } else if (kv_data_str.includes(`BaseClass`) && (kv_data_str.includes(`ability_lua`) || kv_data_str.includes(`ability_datadriven`))) {
-                        file_name = "DOTAAbilities"
-                    } else {
-                        file_name = sheet_name
+                        return end_col
                     }
+
+                    let indentLevel = 0
+                    let indentStr = (`${indent_str}`).repeat(indentLevel);
+                    function convert_row_to_kv2(start_row: integer, end_row, start_col: integer, end_col): string {
+                        // title_row: string[], note_row: string[],
+                        for (let _col = start_col; _col <= end_col; _col++) {
+                            let title = title_row[_col]
+                            if (isBlank(title)) continue;
+                            title = title.trim()
+
+                            if (title.startsWith("#")) continue;
+                            if (title.endsWith("↓]")) continue;
+                            if (title.endsWith("↓}")) continue;
+                            if (title.endsWith("]")) continue;
+                            if (title.endsWith("}")) continue;
+
+                            // 向下遍历数组
+                            if (title.endsWith("[↓")) {
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                let s_title = title.replace(`[↓`, ``)
+
+                                let isBlankTitle = isBlank(s_title)
+                                if(!isBlankTitle){
+                                    if(_col == 0){
+                                        kv_data_complex.push(`${indentStr}"${s_title}"\n`);
+                                        kv_data_complex.push(`${indentStr}{\n`);
+                                    }else{
+                                        kv_data_complex.push(`${indentStr}"${s_title}" {\n`);
+                                    }
+                                    // 子元素缩进 + 1
+                                    indentLevel = indentLevel + 1
+                                }
+
+                                // 子元素下标
+                                // 寻找当前数组的结束列 
+                                let cur_end_col = find_end_col(_col, end_col, "[↓", "↓]")
+
+                                let hasIndex = false
+                                for (let _row = start_row; _row <= end_row; _row++) {
+                                    let arrayIndex = kv_data[_row][_col]
+                                    // 如果不为空 变数一组数据开始
+                                    if (isNotBlank(arrayIndex)) {
+                                        hasIndex = true
+                                        break
+                                    }
+                                }
+
+                                // 数组有没有索引列， 没有则每一行作为数组的一组数据
+                                if(hasIndex){
+                                    let child_indent = (`${indent_str}`).repeat(indentLevel);
+                                    let cur_start_row = start_row
+                                    for (let _row = start_row; _row <= end_row; _row++) {
+                                        let arrayIndex = kv_data[_row][_col]
+                                        // 如果不为空 变数一组数据开始
+                                        if (isNotBlank(arrayIndex)) {
+                                            if (_row != cur_start_row) {
+                                                // 开始 {
+                                                if (primary_col == _col && name_col) {
+                                                    // #name
+                                                    let note_name = kv_data[cur_start_row][name_col]
+                                                    if (isNotBlank(note_name)) {
+                                                        kv_data_complex.push(`${indent_str.repeat(1)}// ${note_name}\n`);
+                                                    }
+                                                }
+                                                kv_data_complex.push(`${child_indent}"${kv_data[cur_start_row][_col]}" {\n`);
+                                                indentLevel = indentLevel + 1
+                                                convert_row_to_kv2(cur_start_row, _row - 1, _col + 1, cur_end_col - 1)
+                                                indentLevel = indentLevel - 1
+                                                kv_data_complex.push(`${child_indent}}\n`);
+                                            }
+                                            cur_start_row = _row
+                                        }
+                                    }
+                                    // 最后一行处理
+                                    // 开始 {
+                                    if (primary_col == _col && name_col) {
+                                        // #name
+                                        let note_name = kv_data[cur_start_row][name_col]
+                                        if (isNotBlank(note_name)) {
+                                            kv_data_complex.push(`${indent_str.repeat(1)}// ${note_name}\n`);
+                                        }
+                                    }
+                                    kv_data_complex.push(`${child_indent}"${kv_data[cur_start_row][_col]}" {\n`);
+                                    indentLevel = indentLevel + 1
+                                    convert_row_to_kv2(cur_start_row, end_row, _col + 1, cur_end_col - 1)
+                                    indentLevel = indentLevel - 1
+                                    kv_data_complex.push(`${child_indent}}\n`);
+                                }else{
+                                    let child_indent = (`${indent_str}`).repeat(indentLevel);
+                                    let arr_index = 1
+                                    for (let _row = start_row; _row <= end_row; _row++) {
+                                        kv_data_complex.push(`${child_indent}"${arr_index}" {\n`);
+                                        indentLevel = indentLevel + 1
+                                        // 处理中间数据
+                                        convert_row_to_kv2(_row, _row, _col + 1, cur_end_col - 1)
+                                        indentLevel = indentLevel - 1
+                                        kv_data_complex.push(`${child_indent}}\n`);
+                                        arr_index = arr_index + 1
+                                    }
+                                }
+
+                                // 将当前列赋值为结束列，下次遍历结束列的下一列
+                                _col = cur_end_col
+                                if(!isBlankTitle){
+                                    indentLevel = indentLevel - 1
+                                    indentStr = (`${indent_str}`).repeat(indentLevel);
+                                    kv_data_complex.push(`${indentStr}}\n`);
+                                }
+                            } else if (title.endsWith("{↓")) {
+                                // 向下的map
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                let s_title = title.replace(`{↓`, ``)
+                                let custom_title = kv_data[start_row][_col]
+                                if (!isBlank(custom_title)) {
+                                    s_title = custom_title
+                                }
+                                // 开始 {
+                                if(isBlank(s_title)){
+                                    kv_data_complex.push(`${indentStr} {\n`);
+                                }else{
+                                    kv_data_complex.push(`${indentStr}"${s_title}" {\n`);
+                                }
+                                // 子元素缩进 + 1
+                                indentLevel = indentLevel + 1
+
+                                // 寻找当前map的结束列 
+                                let cur_end_col = find_end_col(_col, end_col, "{↓", "↓}")
+                                // 将当前列赋值为结束列，下次遍历结束列的下一列
+                                // 处理map中间数据
+                                convert_row_to_kv2(start_row, end_row, _col + 1, cur_end_col - 1)
+                                // map结束
+                                _col = cur_end_col
+                                indentLevel = indentLevel - 1
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                kv_data_complex.push(`${indentStr}}\n`);
+
+                            } else if (title.endsWith("[")) {
+                                // 横向的数组
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                let s_title = title.replace(`[`, ``)
+                                // 开始 {
+                                kv_data_complex.push(`${indentStr}"${s_title}" {\n`);
+                                // 子元素缩进 + 1
+                                indentLevel = indentLevel + 1
+
+                                // 子元素下标
+                                // 寻找当前数组的结束列 
+                                let cur_end_col = find_end_col(_col, end_col, "[", "]")
+
+                                // console.log(`${title} find ${_col}--> ${end_col} end col = ${cur_end_col}`)
+                                // 处理横向数组的每一项
+                                convert_row_to_kv2(start_row, end_row, _col + 1, cur_end_col - 1)
+                                // 数组结束
+                                _col = cur_end_col
+                                indentLevel = indentLevel - 1
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                kv_data_complex.push(`${indentStr}}\n`);
+
+                            } else if (title.endsWith("{")) {
+                                // 横向的Map
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                let s_title = title.replace(`{`, ``)
+                                let custom_title = kv_data[start_row][_col]
+                                if (!isBlank(custom_title)) {
+                                    s_title = custom_title
+                                }
+                                // 开始 {
+                                if(isBlank(s_title)){
+                                    kv_data_complex.push(`${indentStr} {\n`);
+                                }else{
+                                    kv_data_complex.push(`${indentStr}"${s_title}" {\n`);
+                                }
+                                indentLevel = indentLevel + 1
+
+                                // 子元素下标
+                                // 寻找当前数组的结束列 
+                                let cur_end_col = find_end_col(_col, end_col, "{", "}")
+
+                                // 处理横向数组的每一项
+                                convert_row_to_kv2(start_row, end_row, _col + 1, cur_end_col - 1)
+                                // 数组结束
+                                indentLevel = indentLevel - 1
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                kv_data_complex.push(`${indentStr}}\n`);
+                                _col = cur_end_col
+                            } else {
+                                if (title_row[_col] == "v" || title_row[_col] == "value") continue;
+
+                                let isKey= title == "k" || title == "key"
+                                let value_col
+                                if (isKey) {
+                                    for (let _c = _col + 1; _c <= end_col; _c++) {
+                                        if (isBlank(title_row[_c])) continue;
+                                        if (title_row[_c].trim() == "v" || title_row[_c].trim() == "value") {
+                                            value_col = _c
+                                            break
+                                        }
+                                    }
+                                }
+
+                                indentStr = (`${indent_str}`).repeat(indentLevel);
+                                for (let _row = start_row; _row <= end_row; _row++) {
+                                    let cell = kv_data[_row][_col]
+
+                                    if (/^Ability[0-9]{1,2}/.test(title)) {
+                                        if(isBlank(cell)){
+                                            cell = ""
+                                        }
+                                        kv_data_complex.push(`${indentStr}"${title}" "${cell}"\n`);
+                                        continue;
+                                    }
+                                    if (isBlank(cell)) continue;
+                                    if (cell.toString().trimStart().startsWith('{')) {
+                                        kv_data_complex.push(`${indentStr}"${title}" ${cell}\n`);
+                                    } else if (isKey) {
+                                        if(isBlank(value_col)) {
+                                            console.warn(
+                                                cli.red(
+                                                    `sheet ${sheet_name} 第 ${_row} 行 ${_col}列 ${cell} 对应的数值列没有找到，请检查！`
+                                                )
+                                            );
+                                            continue
+                                        }
+                                        let v_cell = kv_data[_row][value_col]
+                                        if (isBlank(v_cell)) continue;
+                                        kv_data_complex.push(`${indentStr}"${cell}" "${v_cell}"\n`);
+                                    } else {
+                                        kv_data_complex.push(`${indentStr}"${title}" "${cell}"\n`);
+
+                                    }
+                                }
+
+                                if (isKey) {
+                                    if(!isBlank(value_col)) {
+                                        _col = value_col
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+
+                    convert_row_to_kv2(0, kv_data.length - 1, 0, title_row.length - 1)
+                    // 删除空的数组
+                    for (let i = 0; i < kv_data_complex.length; i++) {
+                        let cell_str = kv_data_complex[i]
+                        let next_cell_str = kv_data_complex[i + 1]
+                        if (null != cell_str && null != next_cell_str) {
+                            cell_str = cell_str.trim()
+                            next_cell_str = next_cell_str.trim()
+                            if (cell_str.endsWith('{') && next_cell_str == '}') {
+                                kv_data_complex.splice(i, 1);
+                                kv_data_complex.splice(i, 1);
+                                i--
+                                i--
+                            }
+                        }
+                    }
+                    kv_data_str = `${kv_data_complex.join('')}`;
                 }
 
                 let out_put = `
@@ -613,10 +594,7 @@ export function sheetToKV(options: SheetToKVOptions) {
 // ${file.basename} ${sheet_name}
 // SourceCode: https://github.com/XavierCHN/gulp-dotax/blob/master/src/sheetToKV.ts
 // Template: https://github.com/XavierCHN/x-template
-"${file_name}"
-{
 ${kv_data_str}
-}
 `;
 
                 const kvBaseName = `${sheet_name}${kvFileExt}`;
