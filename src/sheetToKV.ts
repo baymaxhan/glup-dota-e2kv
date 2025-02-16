@@ -261,53 +261,87 @@ export function sheetToKV(options: SheetToKVOptions) {
                     kv_data_str = `"${sheet_name}"\n{\n${kv_data_simple.join('\n')}\n}`;
                 } else {
                     let kv_data_complex = new Array()
-                    // 国际化文本处理
-                    title_row.forEach((title, _col) => {
-                        // 处理写excel文件中的本地化文本
-                        let is_loc = title.includes(`#Loc`)
-                        let is_locvalues = title == `#LocValues`
-                        if (is_loc || is_locvalues) {
-                            let ability_name
-                            kv_data.forEach((row, _row) => {
-                                let p_cell = row[primary_col]
-                                if (!isEmptyOrNullOrUndefined(p_cell)) {
-                                    ability_name = p_cell
-                                };
 
-                                let loc_text = row[_col]
-                                if (isEmptyOrNullOrUndefined(loc_text)) return;
-                                if (loc_text.trim && loc_text.trim() === ``) return;
-                                if (!is_locvalues) {
-                                    let locKey = title.replace(`#Loc`, ``).replace(`{}`, ability_name);
+                    // 国际化文本处理
+                    let locMap = new Map();
+                    for (let index = 0; index < title_row.length; index++) {
+                        let s_title = title_row[index]
+                        if (isBlank(s_title)) continue;
+                        if (s_title.includes(`#Loc`)) {
+                            locMap.set(index, s_title)
+                        }
+                    }
+
+                    // 国际化文本处理
+                    if(locMap.size > 0){
+                        let main_key
+                        kv_data.forEach((row, _row) => {
+                            let main_cell = row[primary_col]
+                            if (!isBlank(main_cell)) {
+                                main_key = main_cell
+                            };
+
+                            locMap.forEach((loc_title, loc_col) => {
+                                let loc_text = row[loc_col]
+                                if (isBlank(loc_text)) return;
+                                // 自定义国际化
+                                if(loc_title.includes(`#LocCustom`)){
+                                    let _prev_col
+                                    for (let index = (loc_col - 1); index >= 0; index--) {
+                                        let s_title = title_row[index]
+                                        if(s_title.startsWith("#")) continue;
+                                        _prev_col = index
+                                        break
+                                    }
+                                    if(isBlank(_prev_col)) return;
+                                    let loc_key = row[_prev_col]
+                                    if (isBlank(loc_key)) return;
+    
+                                    let locKey = loc_title.replace(`#LocCustom`, ``).replace(`{}`, loc_key);
+                                    console.log(`${locKey} `)
+                                    locTokens.push({
+                                        KeyName: locKey,
+                                        [addonCSVDefaultLang]: loc_text,
+                                    });
+                                }else if(loc_title == `#LocValues`){
+                                    if(isBlank(main_key)) return;
+
+                                    let _prev_col
+                                    for (let index = (loc_col - 1); index >= 0; index--) {
+                                        let s_title = title_row[index]
+                                        if(s_title.startsWith("#")) continue;
+                                        _prev_col = index
+                                        break
+                                    }
+                                    if(isBlank(_prev_col)) return;
+
+                                    let ability_value = title_row[_prev_col]
+
+                                    if (ability_value == "key" || ability_value == "k") {
+                                        ability_value = row[_prev_col]
+                                        if (isBlank(ability_value)) return;
+                                        if (ability_value.trim && ability_value.trim() === ``) return;
+                                    }
+
+                                    let locKey = `DOTA_Tooltip_ability_${main_key}_${ability_value}`;
+                                    locTokens.push({
+                                        KeyName: locKey,
+                                        [addonCSVDefaultLang]: loc_text,
+                                    });
+                                }else{
+                                    // console.log(`${loc_title}`)
+                                    if(isBlank(main_key)) return;
+                                    let locKey = loc_title.replace(`#Loc`, ``).replace(`{}`, main_key);
                                     // 保存对应的本地化tokens
                                     locTokens.push({
                                         //TODO, 将Tokens修改为 addon.csv 第一行的第一个元素？
                                         KeyName: locKey,
                                         [addonCSVDefaultLang]: loc_text,
                                     });
-                                } else {
-                                    let loc_text = row[_col]
-                                    if (isEmptyOrNullOrUndefined(loc_text)) return;
-                                    if (isEmptyOrNullOrUndefined(title)) return;
-                                    let s_title = title_row[_col - 1]
-                                    let ability_value
-                                    if (s_title == "key" || s_title == "k") {
-                                        ability_value = row[_col - 1]
-                                        if (isEmptyOrNullOrUndefined(ability_value)) return;
-                                        if (ability_value.trim && ability_value.trim() === ``) return;
-                                    } else {
-                                        ability_value = title_row[_col - 1]
-                                    }
-
-                                    let locKey = `DOTA_Tooltip_ability_${ability_name}_${ability_value}`;
-                                    locTokens.push({
-                                        KeyName: locKey,
-                                        [addonCSVDefaultLang]: loc_text,
-                                    });
                                 }
-                            })
-                        }
-                    })
+                            });
+                        })
+                    }
 
 
                     function find_end_col(start_col, end_col, start_mark, end_mark) {
